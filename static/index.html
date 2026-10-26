@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FACE MOSAIC · 视频人脸打码台</title>
+<style>
+  :root {
+    --bg: #0c0e0b;
+    --panel: #14170f;
+    --line: #2a2f1f;
+    --amber: #e8b03f;
+    --amber-dim: #8a6a24;
+    --green: #9ac357;
+    --red: #d96459;
+    --text: #d8d6c8;
+    --muted: #7d7f6e;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "JetBrains Mono", Consolas, "Microsoft YaHei", monospace;
+    min-height: 100vh;
+    background-image:
+      linear-gradient(rgba(232,176,63,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,176,63,.03) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  header {
+    border-bottom: 1px solid var(--line);
+    padding: 18px 28px;
+    display: flex; align-items: baseline; gap: 16px;
+  }
+  header h1 { font-size: 18px; letter-spacing: 4px; color: var(--amber); font-weight: 700; }
+  header .sub { font-size: 11px; color: var(--muted); letter-spacing: 2px; }
+  main { display: grid; grid-template-columns: 380px 1fr; gap: 24px; padding: 24px 28px; max-width: 1280px; margin: 0 auto; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); padding: 20px; }
+  .panel h2 { font-size: 11px; letter-spacing: 3px; color: var(--muted); margin-bottom: 14px; }
+  #drop {
+    border: 1px dashed var(--amber-dim); padding: 34px 16px; text-align: center;
+    cursor: pointer; transition: all .15s; font-size: 12px; color: var(--muted);
+  }
+  #drop:hover, #drop.over { border-color: var(--amber); color: var(--amber); background: rgba(232,176,63,.05); }
+  #drop strong { display: block; font-size: 13px; color: var(--text); margin-bottom: 6px; }
+  label.opt { display: block; font-size: 11px; color: var(--muted); margin: 18px 0 8px; letter-spacing: 1px; }
+  .methods { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .methods button {
+    background: transparent; border: 1px solid var(--line); color: var(--muted);
+    font-family: inherit; font-size: 11px; padding: 9px 4px; cursor: pointer; letter-spacing: 1px;
+    transition: all .12s;
+  }
+  .methods button:hover { border-color: var(--amber-dim); color: var(--text); }
+  .methods button.on { border-color: var(--amber); color: var(--amber); background: rgba(232,176,63,.08); }
+  input[type=range] { width: 100%; accent-color: var(--amber); }
+  .val { float: right; color: var(--amber); }
+  #go {
+    margin-top: 22px; width: 100%; padding: 13px; background: var(--amber); color: #14170f;
+    border: 0; font-family: inherit; font-weight: 700; font-size: 13px; letter-spacing: 3px;
+    cursor: pointer; transition: filter .12s;
+  }
+  #go:hover { filter: brightness(1.12); }
+  #go:disabled { background: var(--line); color: var(--muted); cursor: wait; }
+  #log {
+    font-size: 11px; line-height: 1.9; color: var(--muted); min-height: 200px;
+    white-space: pre-wrap; word-break: break-all;
+  }
+  #log .ok { color: var(--green); }
+  #log .err { color: var(--red); }
+  #log .hi { color: var(--amber); }
+  .bar { height: 8px; background: #1a1d13; border: 1px solid var(--line); margin: 12px 0; }
+  .bar i { display: block; height: 100%; background: repeating-linear-gradient(90deg, var(--amber) 0 8px, #b98a2c 8px 12px); width: 0; transition: width .3s; }
+  #result { display: none; }
+  #result video { width: 100%; max-height: 420px; background: #000; border: 1px solid var(--line); }
+  #result a {
+    display: inline-block; margin-top: 12px; color: var(--green); font-size: 12px;
+    text-decoration: none; border: 1px solid var(--green); padding: 8px 18px; letter-spacing: 2px;
+  }
+  #result a:hover { background: rgba(154,195,87,.1); }
+</style>
+</head>
+<body>
+<header>
+  <h1>FACE MOSAIC</h1>
+  <span class="sub">视频人脸动态打码台 / RetinaFace + BYTETracker</span>
+</header>
+<main>
+  <section class="panel">
+    <h2>01 · 输入</h2>
+    <div id="drop">
+      <strong>拖入视频文件</strong>或点击选择（mp4 / mov / avi，≤500MB）
+    </div>
+    <input type="file" id="file" accept="video/*" hidden>
+    <h2 style="margin-top:22px">02 · 遮挡方式</h2>
+    <div class="methods" id="methods">
+      <button data-m="pixelate" class="on">马赛克</button>
+      <button data-m="gaussian">高斯模糊</button>
+      <button data-m="emoji">笑脸贴片</button>
+      <button data-m="elliptical">椭圆模糊</button>
+      <button data-m="median">中值模糊</button>
+      <button data-m="blackout">纯黑遮挡</button>
+      <button data-m="overlay">自定义贴片</button>
+      <button data-m="none">无遮挡</button>
+    </div>
+    <label class="opt">换脸照片（可选，上传后视频中所有人脸替换为该照片中的脸）</label>
+    <div id="swapbox" style="border:1px dashed var(--line); padding:10px 12px; font-size:11px; color:var(--muted); cursor:pointer">
+      点击选择人脸照片（正面清晰照效果最佳）
+    </div>
+    <input type="file" id="swapfile" accept="image/*" hidden>
+    <label class="opt">强度 <span class="val" id="sval">15</span></label>
+    <input type="range" id="strength" min="3" max="40" value="15">
+    <button id="go" disabled>开始处理</button>
+  </section>
+  <section>
+    <div class="panel">
+      <h2>处理监视器</h2>
+      <div class="bar"><i id="fill"></i></div>
+      <div id="log">等待输入…</div>
+    </div>
+    <div class="panel" id="result" style="margin-top:20px">
+      <h2>成品输出</h2>
+      <video id="outv" controls></video>
+      <a id="dl" download>下载 MP4</a>
+    </div>
+  </section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const drop = $('#drop'), file = $('#file'), go = $('#go');
+const swapbox = $('#swapbox'), swapfile = $('#swapfile');
+let picked = null, swapImg = null, method = 'pixelate', busy = false;
+
+swapbox.onclick = () => swapfile.click();
+swapfile.onchange = () => {
+  swapImg = swapfile.files[0] || null;
+  swapbox.innerHTML = swapImg ? `换脸照片: <span style="color:var(--green)">${swapImg.name}</span>（再次点击可更换）`
+                              : '点击选择人脸照片（正面清晰照效果最佳）';
+};
+
+drop.onclick = () => file.click();
+file.onchange = () => pick(file.files[0]);
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); pick(e.dataTransfer.files[0]); };
+
+function pick(f) {
+  if (!f) return;
+  picked = f;
+  $('#log').innerHTML = `已选择: <span class="hi">${f.name}</span> (${(f.size/1048576).toFixed(1)} MB)\n就绪，点击「开始处理」。`;
+  go.disabled = false;
+}
+
+$('#methods').onclick = e => {
+  if (e.target.dataset.m) {
+    document.querySelectorAll('#methods button').forEach(b => b.classList.remove('on'));
+    e.target.classList.add('on');
+    method = e.target.dataset.m;
+  }
+};
+$('#strength').oninput = e => $('#sval').textContent = e.target.value;
+
+const log = (msg, cls='') => {
+  $('#log').innerHTML += `\n${cls ? `<span class="${cls}">${msg}</span>` : msg}`;
+  $('#log').parentElement.scrollTop = 1e6;
+};
+
+go.onclick = async () => {
+  if (!picked || busy) return;
+  busy = true; go.disabled = true;
+  $('#result').style.display = 'none';
+  $('#log').innerHTML = '上传中…';
+  const fd = new FormData();
+  fd.append('video', picked);
+  fd.append('method', method);
+  fd.append('strength', $('#strength').value);
+  if (swapImg) fd.append('swap_face', swapImg);
+  try {
+    const r = await fetch('/api/upload', { method: 'POST', body: fd });
+    if (!r.ok) throw new Error((await r.json()).detail || '上传失败');
+    const { job_id } = await r.json();
+    log(`任务已受理: <span class="hi">${job_id}</span>`, 'ok');
+    poll(job_id);
+  } catch (err) { log(String(err.message || err), 'err'); busy = false; go.disabled = false; }
+};
+
+async function poll(id) {
+  const t0 = Date.now();
+  const timer = setInterval(async () => {
+    try {
+      const j = await (await fetch(`/api/jobs/${id}`)).json();
+      const pct = j.total ? Math.round(j.processed / j.total * 100) : 0;
+      $('#fill').style.width = pct + '%';
+      if (j.status === 'processing') {
+        log(`处理中 ${j.processed}/${j.total} 帧 (${pct}%)`);
+      } else if (j.status === 'done') {
+        clearInterval(timer);
+        $('#fill').style.width = '100%';
+        log(`完成，用时 ${((Date.now()-t0)/1000).toFixed(1)}s`, 'ok');
+        $('#outv').src = `/api/download/${id}?t=${Date.now()}`;
+        $('#dl').href = `/api/download/${id}`;
+        $('#dl').download = `mosaic_${picked.name.replace(/\.[^.]+$/, '')}.mp4`;
+        $('#result').style.display = 'block';
+        busy = false; go.disabled = false;
+      } else if (j.status === 'error') {
+        clearInterval(timer);
+        log(`失败: ${j.error}`, 'err');
+        busy = false; go.disabled = false;
+      }
+    } catch (e) { /* 网络抖动，继续轮询 */ }
+  }, 1200);
+}
+</script>
+</body>
+</html>

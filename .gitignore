@@ -1,0 +1,51 @@
+# ---------------- Python 环境与缓存 ----------------
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+build/
+dist/
+
+# ---------------- 模型权重（首次运行自动下载，约 80MB）----------------
+.models/
+
+# ---------------- 依赖引导缓存（沙箱离线安装用）----------------
+.wheels/
+.pipcache/
+.tmp/
+
+# ---------------- 运行时目录 ----------------
+# 上传的原始视频、处理成品、mp4v 中间文件
+uploads/
+outputs/
+.work/
+
+# ---------------- 日志 ----------------
+*.log
+server-log.txt
+bootstrap-log.txt
+pip-log.txt
+
+# ---------------- 测试与调试产物 ----------------
+# 保留 face.jpg / swap_ref.jpg / test_video.mp4 作为复现素材
+swapped*.mp4
+swap_demo.mp4
+output_video.mp4
+anonymized*.jpg
+grid*.png
+mask_vis.png
+spike.png
+f_*.png
+s_*.png
+w_*.png
+x_*.png
+
+# ---------------- 系统与编辑器 ----------------
+Thumbs.db
+Desktop.ini
+.DS_Store
+.idea/
+.vscode/
+*.swp
